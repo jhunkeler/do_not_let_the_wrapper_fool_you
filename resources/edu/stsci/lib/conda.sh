@@ -1,11 +1,8 @@
 #!/bin/bash
+source ${EDU_STSCI_SHUTIL_INCLUDE}/die.sh
+source ${EDU_STSCI_SHUTIL_INCLUDE}/compat.sh
 source ${EDU_STSCI_SHUTIL_INCLUDE}/conda.sh
 
-
-shutil_conda_die() {
-    echo "shutil_conda_die: ${1-no_error_specified_by_caller}"
-    exit 1
-}
 
 shutil_conda_exists() {
     retval=0
@@ -19,21 +16,59 @@ shutil_conda_exists() {
 
 shutil_conda_infect() {
     if [[ $(shutil_conda_exists) != 0 ]]; then
-        shutil_conda_die "cannot dump environment key pairs"
+        shutil_die "shutil_conda_infect: cannot dump environment key pairs"
     fi
     printenv | sort
 }
 
-shutil_conda_install() {
-    local version prefix
-    #TODO
+shutil_conda_installer() {
+    local arch platform prefix retval script url version
 
+    arch=$(uname -m)
+    platform=$(uname -s)
 
+    case "${arch}" in
+        i[0-9]+)
+            echo "shutil_conda_installer: caution: 32-bit architecture detected. Continue at your peril." >&2
+            arch=x86
+            ;;
+        *)
+            ;;
+    esac
+
+    case "${platform}" in
+        Darwin)
+            platform=MacOSX
+            ;;
+        *)
+            ;;
+    esac
+
+    version="${1}"
+    prefix="${2}"
+    script="Miniconda3-${version}-${platform}-${arch}.sh"
+    url="${_URL_CONTINUUMIO_MINICONDA}/${script}"
+
+    if [[ ! -f ${script} ]]; then
+        shutil_compat_fetch "${url}"
+    fi
+
+    if [[ -d ${prefix} ]]; then
+        echo "shutil_conda_installer: warning: ${prefix} exists, installation skipped." >&2
+        return
+    fi
+
+    bash ./"${script}" -b -p "${prefix}"
+    retval=$?
+
+    if [[ ${retval} != 0 ]]; then
+        exit ${retval}
+    fi
 }
 
 shutil_conda_withenv() {
     if [[ $(shutil_conda_exists) != 0 ]]; then
-        shutil_conda_die "unable to execute: conda must be on \$PATH or activated via 'conda' function"
+        shutil_die "shutil_conda_withenv: unable to execute: conda must be on \$PATH or activated via 'conda' function"
     fi
     local commands environ exe key
     environ=base
@@ -65,7 +100,7 @@ shutil_conda_withenv() {
 
 shutil_conda_root() {
     if [[ $(shutil_conda_exists) != 0 ]]; then
-        shutil_conda_die "cannot get root directory"
+        shutil_die "shutil_conda_root: cannot get root directory"
     fi
     local version
     version=$(shutil_conda_withenv conda --version)
@@ -76,7 +111,7 @@ shutil_conda_root() {
 
 shutil_conda_version() {
     if [[ $(shutil_conda_exists) != 0 ]]; then
-        shutil_conda_die "cannot get version"
+        shutil_die "shutil_conda_version: cannot get version"
     fi
     local version
     version=$(shutil_conda_withenv conda --version)
@@ -89,7 +124,7 @@ shutil_conda_init_from_prefix() {
     local prefix profile target
     prefix="${1}"
     if [[ ! -d ${prefix}/bin ]]; then
-        shutil_conda_die "expected conda root , but got '${prefix}'"
+        shutil_die "shutil_conda_init_from_prefix: expected conda root, but got '${prefix}'"
     fi
 
     profile="${prefix}"/etc/profile.d/conda.sh
@@ -105,7 +140,7 @@ shutil_conda_init_from_prefix() {
 
 shutil_conda_env_dump() {
     if [[ $(shutil_conda_exists) != 0 ]]; then
-        shutil_conda_die "unable to execute: conda must be on \$PATH or activated via 'conda' function"
+        shutil_die "shutil_conda_env_dump: unable to execute: conda must be on \$PATH or activated via 'conda' function"
     fi
     local commands environ key output use_yaml use_explicit
     environ=base
@@ -150,19 +185,21 @@ shutil_conda_env_dump() {
         shutil_conda_withenv -n "${environ}" conda list --name "${environ}" --explicit > "${output}".txt "${commands[@]}"
         retval=$?
     else
-        shutil_conda_die "shutil_conda_env_dump: unknown operation: ${commands[@]}"
+        shutil_die "shutil_conda_env_dump: unknown operation: ${commands[@]}"
     fi
 
     if [[ ${retval} != 0 ]]; then
-        shutil_conda_die "shutil_conda_env_dump: operation failed: ${@}"
+        shutil_die "shutil_conda_env_dump: operation failed: ${@}"
     fi
 }
 
 set -x
-shutil_conda_init_from_prefix ~/Downloads/miniconda3
-shutil_conda_env_dump --yaml
-shutil_conda_env_dump --explicit
-cat environment.*
+
+shutil_conda_installer latest ~/Downloads/lesigh
+shutil_conda_init_from_prefix ~/Downloads/lesigh
+#shutil_conda_env_dump --yaml
+#shutil_conda_env_dump --explicit
+#cat environment.*
 #export PATH=~/Downloads/miniconda3/bin:$PATH
 #source ~/Downloads/miniconda3/etc/profile.d/conda.sh
 #conda activate

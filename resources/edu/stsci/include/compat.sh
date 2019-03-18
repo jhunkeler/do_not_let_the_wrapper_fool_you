@@ -36,3 +36,28 @@ shutil_compat_replace() {
     mv ${tmp} ${args[0]}
 }
 
+shutil_compat_fetch() {
+    local url supported supported_args
+    supported=(
+        curl
+        wget
+    )
+    supported_args=(
+        '-L -O'
+        '-O'
+    )
+
+    url="${1}"
+    if [[ -z ${url} ]]; then
+        echo "shutil_compat_fetch: url required" >&2
+        exit 1
+    fi
+
+    for i in $(seq 0 "${#supported[@]}")
+    do
+        if [[ $(which ${supported[$i]} 2>/dev/null) ]]; then
+            ${supported[$i]} ${supported_args[$i]} "${url}"
+            break
+        fi
+    done
+}
